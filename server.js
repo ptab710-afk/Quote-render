@@ -1,247 +1,211 @@
-{
-  "name": "Daily Quote Videos - Stage 1 (Fetch + Render)",
-  "nodes": [
-    {
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "hours",
-              "hoursInterval": 24
-            }
-          ]
-        }
-      },
-      "id": "n1-trigger",
-      "name": "Daily Trigger",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        -800,
-        200
-      ]
-    },
-    {
-      "parameters": {
-        "url": "https://zenquotes.io/api/random",
-        "options": {}
-      },
-      "id": "n2-motivation-fetch",
-      "name": "Get Motivation Quote",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        -560,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "url": "https://bible-api.com/?random=verse",
-        "options": {}
-      },
-      "id": "n3-bible-fetch",
-      "name": "Get Bible Verse",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        -560,
-        200
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Quran has no built-in \"random verse\" endpoint, so we pick a random\n// ayah number ourselves (there are 6236 ayahs total in the Quran).\nconst ayahNumber = Math.floor(Math.random() * 6236) + 1;\nreturn [{ json: { ayahNumber } }];"
-      },
-      "id": "n4-quran-pick",
-      "name": "Pick Random Ayah",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -560,
-        400
-      ]
-    },
-    {
-      "parameters": {
-        "url": "=https://api.alquran.cloud/v1/ayah/{{$json.ayahNumber}}/en.asad",
-        "options": {}
-      },
-      "id": "n5-quran-fetch",
-      "name": "Get Quran Verse",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        -320,
-        400
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// \u2500\u2500 Replace these with your real \"raw\" GitHub URLs for your music files \u2500\u2500\nconst musicTracks = [\n  \"https://raw.githubusercontent.com/YOURUSERNAME/quote-post-assets/main/music/track1.mp3\",\n  \"https://raw.githubusercontent.com/YOURUSERNAME/quote-post-assets/main/music/track2.mp3\"\n];\n\nconst q = items[0].json[0] || items[0].json; // zenquotes returns an array\nconst text = q.q;\nconst author = q.a;\n\nreturn [{\n  json: {\n    type: \"Motivation\",\n    text,\n    label: `Daily Motivation \\u2014 ${author}`,\n    theme: \"motivation\",\n    audioUrl: musicTracks[Math.floor(Math.random() * musicTracks.length)],\n    durationSeconds: 15\n  }\n}];"
-      },
-      "id": "n6-motivation-format",
-      "name": "Format Motivation",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -320,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// \u2500\u2500 Replace these with your real \"raw\" GitHub URLs for your music files \u2500\u2500\nconst musicTracks = [\n  \"https://raw.githubusercontent.com/YOURUSERNAME/quote-post-assets/main/music/track1.mp3\",\n  \"https://raw.githubusercontent.com/YOURUSERNAME/quote-post-assets/main/music/track2.mp3\"\n];\n\nconst v = items[0].json;\n\nreturn [{\n  json: {\n    type: \"Bible\",\n    text: v.text ? v.text.trim() : v.verses[0].text,\n    label: v.reference,\n    theme: \"bible\",\n    audioUrl: musicTracks[Math.floor(Math.random() * musicTracks.length)],\n    durationSeconds: 15\n  }\n}];"
-      },
-      "id": "n7-bible-format",
-      "name": "Format Bible",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -320,
-        200
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// \u2500\u2500 Replace these with your real \"raw\" GitHub URLs for your music files \u2500\u2500\nconst musicTracks = [\n  \"https://raw.githubusercontent.com/YOURUSERNAME/quote-post-assets/main/music/track1.mp3\",\n  \"https://raw.githubusercontent.com/YOURUSERNAME/quote-post-assets/main/music/track2.mp3\"\n];\n\nconst a = items[0].json.data;\n\nreturn [{\n  json: {\n    type: \"Quran\",\n    text: a.text,\n    label: `Surah ${a.surah ? a.surah.englishName : \"\"} \\u2014 Ayah ${a.numberInSurah}`,\n    theme: \"quran\",\n    audioUrl: musicTracks[Math.floor(Math.random() * musicTracks.length)],\n    durationSeconds: 15\n  }\n}];"
-      },
-      "id": "n8-quran-format",
-      "name": "Format Quran",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -80,
-        400
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://quote-render-bduu.onrender.com/render",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ { text: $json.text, label: $json.label, theme: $json.theme, audioUrl: $json.audioUrl, durationSeconds: $json.durationSeconds } }}",
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "file"
-            }
-          }
-        }
-      },
-      "id": "n9-render",
-      "name": "Render Video",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        200,
-        200
-      ]
+const express = require("express");
+const axios = require("axios");
+const sharp = require("sharp");
+const ffmpeg = require("fluent-ffmpeg");
+const ffmpegPath = require("ffmpeg-static");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const crypto = require("crypto");
+
+ffmpeg.setFfmpegPath(ffmpegPath);
+
+const app = express();
+app.use(express.json({ limit: "2mb" }));
+
+const WIDTH = 1080;
+const HEIGHT = 1920;
+
+// --- Simple word-wrap for the quote text ------------------------------
+function wrapText(text, maxCharsPerLine) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? current + " " + word : word;
+    if (candidate.length > maxCharsPerLine && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
     }
-  ],
-  "connections": {
-    "Daily Trigger": {
-      "main": [
-        [
-          {
-            "node": "Get Motivation Quote",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Get Bible Verse",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Pick Random Ayah",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Motivation Quote": {
-      "main": [
-        [
-          {
-            "node": "Format Motivation",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Bible Verse": {
-      "main": [
-        [
-          {
-            "node": "Format Bible",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Pick Random Ayah": {
-      "main": [
-        [
-          {
-            "node": "Get Quran Verse",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Quran Verse": {
-      "main": [
-        [
-          {
-            "node": "Format Quran",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Format Motivation": {
-      "main": [
-        [
-          {
-            "node": "Render Video",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Format Bible": {
-      "main": [
-        [
-          {
-            "node": "Render Video",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Format Quran": {
-      "main": [
-        [
-          {
-            "node": "Render Video",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
-  },
-  "pinData": {},
-  "meta": {
-    "instanceId": "daily-quote-videos"
   }
+  if (current) lines.push(current);
+  return lines;
 }
+
+function escapeXml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+// --- Theme color palettes + pattern styles ------------------------------
+const THEMES = {
+  motivation: { c1: "#ff7e29", c2: "#ff4d6d", pattern: "diagonal" },
+  bible: { c1: "#1e3c72", c2: "#2a5298", pattern: "dots" },
+  quran: { c1: "#0f4d3c", c2: "#0a7a5c", pattern: "diamonds" },
+  default: { c1: "#232526", c2: "#414345", pattern: "diagonal" }
+};
+
+function buildPatternShapes(pattern, color) {
+  if (pattern === "diagonal") {
+    let shapes = "";
+    for (let x = -HEIGHT; x < WIDTH + HEIGHT; x += 90) {
+      shapes += `<line x1="${x}" y1="0" x2="${x + HEIGHT}" y2="${HEIGHT}" stroke="${color}" stroke-width="18" stroke-opacity="0.12"/>`;
+    }
+    return shapes;
+  }
+  if (pattern === "dots") {
+    let shapes = "";
+    for (let y = 40; y < HEIGHT; y += 110) {
+      for (let x = 40; x < WIDTH; x += 110) {
+        shapes += `<circle cx="${x}" cy="${y}" r="7" fill="${color}" fill-opacity="0.16"/>`;
+      }
+    }
+    return shapes;
+  }
+  if (pattern === "diamonds") {
+    let shapes = "";
+    const size = 100;
+    for (let y = 0; y < HEIGHT + size; y += size) {
+      for (let x = 0; x < WIDTH + size; x += size) {
+        const offset = (Math.floor(y / size) % 2) * (size / 2);
+        shapes += `<rect x="${x + offset}" y="${y}" width="${size * 0.55}" height="${size * 0.55}" fill="${color}" fill-opacity="0.14" transform="rotate(45 ${x + offset} ${y})"/>`;
+      }
+    }
+    return shapes;
+  }
+  return "";
+}
+
+// --- Build the full SVG: generated background pattern + quote text -----
+function buildFullSvg({ text, label, theme }) {
+  const palette = THEMES[theme] || THEMES.default;
+  const fontSize = 58;
+  const lineHeight = fontSize * 1.4;
+  const maxCharsPerLine = 24;
+  const lines = wrapText(text, maxCharsPerLine);
+
+  const totalTextHeight = lines.length * lineHeight;
+  const startY = HEIGHT / 2 - totalTextHeight / 2;
+
+  const tspans = lines
+    .map((line, i) => {
+      const y = startY + i * lineHeight;
+      return `<text x="50%" y="${y}" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="${fontSize}" fill="#ffffff" stroke="#000000" stroke-width="2" paint-order="stroke">${escapeXml(
+        line
+      )}</text>`;
+    })
+    .join("\n");
+
+  return `
+  <svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="${palette.c1}"/>
+        <stop offset="100%" stop-color="${palette.c2}"/>
+      </linearGradient>
+      <linearGradient id="darken" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#000000" stop-opacity="0.15"/>
+        <stop offset="45%" stop-color="#000000" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="#000000" stop-opacity="0.5"/>
+      </linearGradient>
+    </defs>
+    <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#bg)"/>
+    ${buildPatternShapes(palette.pattern, "#ffffff")}
+    <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#darken)"/>
+    ${tspans}
+    <text x="50%" y="${HEIGHT - 90}" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-weight="600" font-size="40" fill="#f2f2f2" stroke="#000000" stroke-width="1.5" paint-order="stroke">${escapeXml(
+    label || ""
+  )}</text>
+  </svg>`;
+}
+
+async function downloadToBuffer(url) {
+  const res = await axios.get(url, { responseType: "arraybuffer", timeout: 30000 });
+  return Buffer.from(res.data);
+}
+
+app.get("/", (req, res) => {
+  res.send("Quote render service is running.");
+});
+
+// POST /render
+// body: {
+//   text: string     -> the quote/verse text (required)
+//   label: string    -> small caption, e.g. "Daily Motivation" (optional)
+//   theme: string    -> "motivation" | "bible" | "quran" (controls generated
+//                       background colors/pattern - no image needed)
+//   audioUrl: string -> background music URL, mp3 (required)
+//   durationSeconds: number -> video length, default 15
+// }
+app.post("/render", async (req, res) => {
+  const jobId = crypto.randomBytes(6).toString("hex");
+  const tmpDir = os.tmpdir();
+  const framePath = path.join(tmpDir, `frame-${jobId}.png`);
+  const audioPath = path.join(tmpDir, `audio-${jobId}.mp3`);
+  const outputPath = path.join(tmpDir, `output-${jobId}.mp4`);
+
+  try {
+    const { text, label, theme, audioUrl, durationSeconds } = req.body;
+
+    if (!text || !audioUrl) {
+      return res
+        .status(400)
+        .json({ error: "text and audioUrl are required" });
+    }
+
+    const duration = Number(durationSeconds) || 15;
+
+    // 1. Get the music track
+    const audioBuffer = await downloadToBuffer(audioUrl);
+    fs.writeFileSync(audioPath, audioBuffer);
+
+    // 2. Generate the background pattern + text as a single frame
+    const fullSvg = Buffer.from(buildFullSvg({ text, label, theme }));
+
+    await sharp(fullSvg).png().toFile(framePath);
+
+    // 3. Combine the still frame + audio into an mp4
+    await new Promise((resolve, reject) => {
+      ffmpeg()
+        .input(framePath)
+        .loop(duration)
+        .input(audioPath)
+        .outputOptions([
+          "-c:v libx264",
+          "-tune stillimage",
+          "-c:a aac",
+          "-b:a 192k",
+          "-pix_fmt yuv420p",
+          `-t ${duration}`,
+          "-shortest",
+          "-vf scale=" + WIDTH + ":" + HEIGHT
+        ])
+        .save(outputPath)
+        .on("end", resolve)
+        .on("error", reject);
+    });
+
+    res.setHeader("Content-Type", "video/mp4");
+    fs.createReadStream(outputPath).pipe(res).on("close", cleanup);
+  } catch (err) {
+    console.error(err);
+    cleanup();
+    res.status(500).json({ error: err.message || "render failed" });
+  }
+
+  function cleanup() {
+    for (const p of [framePath, audioPath, outputPath]) {
+      fs.unlink(p, () => {});
+    }
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Quote render service listening on ${PORT}`));
