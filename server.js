@@ -10,8 +10,24 @@ const crypto = require("crypto");
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
+// Keep memory usage low on constrained free-tier hosting (e.g. Render's
+// 512MB free instances): disable sharp's internal cache and limit it to
+// one operation at a time instead of building up cached buffers.
+sharp.cache(false);
+sharp.concurrency(1);
+
 const app = express();
 app.use(express.json({ limit: "2mb" }));
+
+// Only ever run one render job at a time. Running sharp + ffmpeg
+// concurrently for multiple videos is what actually exceeds 512MB -
+// this queue makes requests wait their turn instead of overlapping.
+let queue = Promise.resolve();
+function enqueue(job) {
+  const result = queue.then(job, job);
+  queue = result.catch(() => {});
+  return result;
+}
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
@@ -151,60 +167,72 @@ app.post("/render", async (req, res) => {
   const audioPath = path.join(tmpDir, `audio-${jobId}.mp3`);
   const outputPath = path.join(tmpDir, `output-${jobId}.mp4`);
 
-  try {
-    const { text, label, theme, audioUrl, durationSeconds } = req.body;
-
-    if (!text || !audioUrl) {
-      return res
-        .status(400)
-        .json({ error: "text and audioUrl are required" });
-    }
-
-    const duration = Number(durationSeconds) || 15;
-
-    // 1. Get the music track
-    const audioBuffer = await downloadToBuffer(audioUrl);
-    fs.writeFileSync(audioPath, audioBuffer);
-
-    // 2. Generate the background pattern + text as a single frame
-    const fullSvg = Buffer.from(buildFullSvg({ text, label, theme }));
-
-    await sharp(fullSvg).png().toFile(framePath);
-
-    // 3. Combine the still frame + audio into an mp4
-    await new Promise((resolve, reject) => {
-      ffmpeg()
-        .input(framePath)
-        .loop(duration)
-        .input(audioPath)
-        .outputOptions([
-          "-c:v libx264",
-          "-tune stillimage",
-          "-c:a aac",
-          "-b:a 192k",
-          "-pix_fmt yuv420p",
-          `-t ${duration}`,
-          "-shortest",
-          "-vf scale=" + WIDTH + ":" + HEIGHT
-        ])
-        .save(outputPath)
-        .on("end", resolve)
-        .on("error", reject);
-    });
-
-    res.setHeader("Content-Type", "video/mp4");
-    fs.createReadStream(outputPath).pipe(res).on("close", cleanup);
-  } catch (err) {
-    console.error(err);
-    cleanup();
-    res.status(500).json({ error: err.message || "render failed" });
-  }
-
   function cleanup() {
     for (const p of [framePath, audioPath, outputPath]) {
       fs.unlink(p, () => {});
     }
   }
+
+  await enqueue(async () => {
+    try {
+      const { text, label, theme, audioUrl, durationSeconds } = req.body;
+
+      if (!text || !audioUrl) {
+        res.status(400).json({ error: "text and audioUrl are required" });
+        return;
+      }
+
+      const duration = Number(durationSeconds) || 15;
+
+      // 1. Get the music track
+      const audioBuffer = await downloadToBuffer(audioUrl);
+      fs.writeFileSync(audioPath, audioBuffer);
+
+      // 2. Generate the background pattern + text as a single frame
+      const fullSvg = Buffer.from(buildFullSvg({ text, label, theme }));
+      await sharp(fullSvg).png().toFile(framePath);
+
+      // 3. Combine the still frame + audio into an mp4.
+      // "ultrafast" preset + capped threads keeps encoder memory low,
+      // which matters on a 512MB free-tier instance.
+      await new Promise((resolve, reject) => {
+        ffmpeg()
+          .input(framePath)
+          .loop(duration)
+          .input(audioPath)
+          .outputOptions([
+            "-c:v libx264",
+            "-preset ultrafast",
+            "-threads 1",
+            "-tune stillimage",
+            "-c:a aac",
+            "-b:a 128k",
+            "-pix_fmt yuv420p",
+            `-t ${duration}`,
+            "-shortest",
+            "-vf scale=" + WIDTH + ":" + HEIGHT
+          ])
+          .save(outputPath)
+          .on("end", resolve)
+          .on("error", reject);
+      });
+
+      res.setHeader("Content-Type", "video/mp4");
+      await new Promise((resolve) => {
+        fs.createReadStream(outputPath)
+          .pipe(res)
+          .on("close", resolve)
+          .on("finish", resolve);
+      });
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: err.message || "render failed" });
+      }
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 const PORT = process.env.PORT || 3000;
