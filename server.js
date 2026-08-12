@@ -17,6 +17,56 @@ sharp.cache(false);
 sharp.concurrency(1);
 
 const app = express();
+// --- POSTER: 1080x1080 job alert card, same sharp/SVG approach as /render ---
+const POSTER_SIZE = 1080;
+
+app.post("/poster", async (req, res) => {
+  try {
+    const title = String(req.body.title || "Job Opening");
+    const company = String(req.body.company || "See posting for details");
+    const location = String(req.body.location || "Kenya");
+
+    const titleFontSize = 58;
+    const titleLineHeight = titleFontSize * 1.2;
+    const titleLines = wrapText(escapeXml(title), 22);
+    const titleTspans = titleLines
+      .map((line, i) => `<tspan x="70" dy="${i === 0 ? 0 : titleLineHeight}">${line}</tspan>`)
+      .join("\n");
+
+    const svg = `
+    <svg width="${POSTER_SIZE}" height="${POSTER_SIZE}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="posterBg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#0B3D2E"/>
+          <stop offset="55%" stop-color="#0F5132"/>
+          <stop offset="100%" stop-color="#14532D"/>
+        </linearGradient>
+      </defs>
+      <rect width="${POSTER_SIZE}" height="${POSTER_SIZE}" fill="url(#posterBg)"/>
+
+      <text x="70" y="110" font-family="DejaVu Sans, Arial, sans-serif" font-size="30" font-weight="800" fill="#F5A623" letter-spacing="2">BUILDING PLAN KE</text>
+      <rect x="850" y="68" width="160" height="52" rx="26" fill="#F5A623"/>
+      <text x="930" y="102" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="20" font-weight="700" fill="#0B3D2E">JOB ALERT</text>
+
+      <text x="70" y="480" font-family="DejaVu Sans, Arial, sans-serif" font-size="${titleFontSize}" font-weight="800" fill="#ffffff">${titleTspans}</text>
+
+      <text x="70" y="620" font-family="DejaVu Sans, Arial, sans-serif" font-size="30" fill="#D7E4DC">${escapeXml(company)} • ${escapeXml(location)}</text>
+
+      <line x1="70" y1="960" x2="1010" y2="960" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+      <text x="70" y="1010" font-family="DejaVu Sans, Arial, sans-serif" font-size="26" font-weight="700" fill="#F5A623">Apply now — link in caption</text>
+      <text x="1010" y="1010" text-anchor="end" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" fill="#B7C7BE">via MyJobMag Kenya</text>
+    </svg>`;
+
+    const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+    res.set("Content-Type", "image/png");
+    res.send(pngBuffer);
+  } catch (err) {
+    console.error("Poster generation failed:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message || "poster generation failed" });
+    }
+  }
+});
 app.use(express.json({ limit: "2mb" }));
 
 // Only ever run one render job at a time. Running sharp + ffmpeg
