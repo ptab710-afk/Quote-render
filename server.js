@@ -17,6 +17,8 @@ sharp.cache(false);
 sharp.concurrency(1);
 
 const app = express();
+app.use(express.json({ limit: "2mb" }));
+
 // --- POSTER: 1080x1080 job alert card, same sharp/SVG approach as /render ---
 const POSTER_SIZE = 1080;
 
@@ -67,7 +69,6 @@ app.post("/poster", async (req, res) => {
     }
   }
 });
-app.use(express.json({ limit: "2mb" }));
 
 // Only ever run one render job at a time. Running sharp + ffmpeg
 // concurrently for multiple videos is what actually exceeds 512MB -
