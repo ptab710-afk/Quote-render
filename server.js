@@ -263,13 +263,14 @@ function buildPosterSvg({ title, company, location, cvAd }) {
   );
   const cvFontSize = 30;
   const cvLineHeight = cvFontSize * 1.35;
+  const cvHeadingGap = 65;
   const cvBoxY = locationY + 70;
-  const cvBoxHeight = 70 + cvLines.length * cvLineHeight + 20;
+  const cvBoxHeight = cvHeadingGap + 20 + cvLines.length * cvLineHeight + 30;
 
   const cvTspans = cvLines
     .map((line, i) => {
-      const y = cvBoxY + 70 + i * cvLineHeight;
-      return `<text x="80" y="${y}" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400" font-size="${cvFontSize}" fill="#555555">${escapeXml(
+      const y = cvBoxY + 45 + cvHeadingGap + i * cvLineHeight;
+      return `<text x="${PW / 2}" y="${y}" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400" font-size="${cvFontSize}" fill="#555555">${escapeXml(
         line
       )}</text>`;
     })
@@ -310,7 +311,7 @@ function buildPosterSvg({ title, company, location, cvAd }) {
   )}</text>
 
     <rect x="60" y="${cvBoxY}" width="960" height="${cvBoxHeight}" rx="16" fill="#fff8e6" stroke="#f5b731" stroke-width="2"/>
-    <text x="80" y="${cvBoxY + 45}" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="34" fill="#0f4d3c">Need a Professional CV?</text>
+    <text x="${PW / 2}" y="${cvBoxY + 45}" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="34" fill="#0f4d3c">Need a Professional CV?</text>
     ${cvTspans}
 
     <rect x="0" y="${PH - footerHeight}" width="${PW}" height="${footerHeight}" fill="#0f4d3c"/>
@@ -337,7 +338,7 @@ app.post("/poster", async (req, res) => {
           location: location || "Kenya",
           cvAd:
             cvAd ||
-            "Get a well-written, ATS-friendly CV that stands out to employers. Call/WhatsApp: 0797435543"
+            "Get a well-written, ATS-friendly CV that stands out to employers. Call/WhatsApp: 0797435543 | Email: ptab710@gmail.com"
         })
       );
       const png = await sharp(svg).png().toBuffer();
