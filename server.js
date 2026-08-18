@@ -236,23 +236,47 @@ app.post("/render", async (req, res) => {
 });
 
 const PW = 1080;
-const PH = 1350;
 
-function buildPosterSvg({ title, company, location }) {
+function buildPosterSvg({ title, company, location, cvAd }) {
   const titleLines = wrapText(title, 22);
   const titleFontSize = 54;
   const titleLineHeight = titleFontSize * 1.25;
-  const boxHeight = titleLines.length * titleLineHeight + 60;
-  const boxY = 640;
+  const titleBoxY = 640;
+  const titleBoxHeight = titleLines.length * titleLineHeight + 60;
 
   const titleTspans = titleLines
     .map((line, i) => {
-      const y = boxY + 55 + i * titleLineHeight;
+      const y = titleBoxY + 55 + i * titleLineHeight;
       return `<text x="80" y="${y}" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="${titleFontSize}" fill="#0f4d3c">${escapeXml(
         line
       )}</text>`;
     })
     .join("\n");
+
+  const companyY = titleBoxY + titleBoxHeight + 90;
+  const locationY = companyY + 55;
+
+  // ── CV advert section ──
+  const cvLines = wrapText(
+    cvAd || "Need a professional CV? Get an ATS-friendly CV that stands out to employers.",
+    46
+  );
+  const cvFontSize = 30;
+  const cvLineHeight = cvFontSize * 1.35;
+  const cvBoxY = locationY + 70;
+  const cvBoxHeight = 70 + cvLines.length * cvLineHeight + 20;
+
+  const cvTspans = cvLines
+    .map((line, i) => {
+      const y = cvBoxY + 70 + i * cvLineHeight;
+      return `<text x="80" y="${y}" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400" font-size="${cvFontSize}" fill="#555555">${escapeXml(
+        line
+      )}</text>`;
+    })
+    .join("\n");
+
+  const footerHeight = 120;
+  const PH = cvBoxY + cvBoxHeight + 60 + footerHeight;
 
   return `
   <svg width="${PW}" height="${PH}" xmlns="http://www.w3.org/2000/svg">
@@ -275,29 +299,33 @@ function buildPosterSvg({ title, company, location }) {
     <rect x="760" y="420" width="240" height="80" rx="14" fill="#f5b731"/>
     <text x="880" y="470" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="34" fill="#0f4d3c">Apply Now</text>
 
-    <rect x="60" y="${boxY}" width="960" height="${boxHeight}" rx="16" fill="#ffffff" stroke="#e2e2e2" stroke-width="2"/>
+    <rect x="60" y="${titleBoxY}" width="960" height="${titleBoxHeight}" rx="16" fill="#ffffff" stroke="#e2e2e2" stroke-width="2"/>
     ${titleTspans}
 
-    <text x="80" y="${boxY + boxHeight + 90}" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="42" fill="#0f4d3c">${escapeXml(
+    <text x="80" y="${companyY}" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="42" fill="#0f4d3c">${escapeXml(
     company
   )}</text>
-    <text x="80" y="${boxY + boxHeight + 145}" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400" font-size="36" fill="#555555">\u{1F4CD} ${escapeXml(
+    <text x="80" y="${locationY}" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400" font-size="36" fill="#555555">${escapeXml(
     location
   )}</text>
 
-    <rect x="0" y="${PH - 120}" width="${PW}" height="120" fill="#0f4d3c"/>
-    <text x="${PW / 2}" y="${PH - 55}" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-weight="600" font-size="34" fill="#ffffff">\u{1F517} Apply link in the message below</text>
+    <rect x="60" y="${cvBoxY}" width="960" height="${cvBoxHeight}" rx="16" fill="#fff8e6" stroke="#f5b731" stroke-width="2"/>
+    <text x="80" y="${cvBoxY + 45}" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="34" fill="#0f4d3c">Need a Professional CV?</text>
+    ${cvTspans}
+
+    <rect x="0" y="${PH - footerHeight}" width="${PW}" height="${footerHeight}" fill="#0f4d3c"/>
+    <text x="${PW / 2}" y="${PH - footerHeight / 2 + 12}" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-weight="600" font-size="34" fill="#ffffff">Apply link in the message below</text>
   </svg>`;
 }
 
 // POST /poster
-// body: { title: string, company: string, location: string }
+// body: { title: string, company: string, location: string, cvAd?: string }
 // Returns a PNG hiring-poster image (not a video - no audio/ffmpeg needed,
 // so this is fast and light on memory).
 app.post("/poster", async (req, res) => {
   await enqueue(async () => {
     try {
-      const { title, company, location } = req.body;
+      const { title, company, location, cvAd } = req.body;
       if (!title) {
         res.status(400).json({ error: "title is required" });
         return;
@@ -306,7 +334,10 @@ app.post("/poster", async (req, res) => {
         buildPosterSvg({
           title,
           company: company || "See posting for details",
-          location: location || "Kenya"
+          location: location || "Kenya",
+          cvAd:
+            cvAd ||
+            "Get a well-written, ATS-friendly CV that stands out to employers. Call/WhatsApp: 0797435543"
         })
       );
       const png = await sharp(svg).png().toBuffer();
