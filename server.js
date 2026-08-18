@@ -19,57 +19,6 @@ sharp.concurrency(1);
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 
-// --- POSTER: 1080x1080 job alert card, same sharp/SVG approach as /render ---
-const POSTER_SIZE = 1080;
-
-app.post("/poster", async (req, res) => {
-  try {
-    const title = String(req.body.title || "Job Opening");
-    const company = String(req.body.company || "See posting for details");
-    const location = String(req.body.location || "Kenya");
-
-    const titleFontSize = 58;
-    const titleLineHeight = titleFontSize * 1.2;
-    const titleLines = wrapText(escapeXml(title), 22);
-    const titleTspans = titleLines
-      .map((line, i) => `<tspan x="70" dy="${i === 0 ? 0 : titleLineHeight}">${line}</tspan>`)
-      .join("\n");
-
-    const svg = `
-    <svg width="${POSTER_SIZE}" height="${POSTER_SIZE}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="posterBg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#0B3D2E"/>
-          <stop offset="55%" stop-color="#0F5132"/>
-          <stop offset="100%" stop-color="#14532D"/>
-        </linearGradient>
-      </defs>
-      <rect width="${POSTER_SIZE}" height="${POSTER_SIZE}" fill="url(#posterBg)"/>
-
-      <text x="70" y="110" font-family="DejaVu Sans, Arial, sans-serif" font-size="30" font-weight="800" fill="#F5A623" letter-spacing="2">BUILDING PLAN KE</text>
-      <rect x="850" y="68" width="160" height="52" rx="26" fill="#F5A623"/>
-      <text x="930" y="102" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="20" font-weight="700" fill="#0B3D2E">JOB ALERT</text>
-
-      <text x="70" y="480" font-family="DejaVu Sans, Arial, sans-serif" font-size="${titleFontSize}" font-weight="800" fill="#ffffff">${titleTspans}</text>
-
-      <text x="70" y="620" font-family="DejaVu Sans, Arial, sans-serif" font-size="30" fill="#D7E4DC">${escapeXml(company)} • ${escapeXml(location)}</text>
-
-      <line x1="70" y1="960" x2="1010" y2="960" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
-      <text x="70" y="1010" font-family="DejaVu Sans, Arial, sans-serif" font-size="26" font-weight="700" fill="#F5A623">Apply now — link in caption</text>
-      <text x="1010" y="1010" text-anchor="end" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" fill="#B7C7BE">via MyJobMag Kenya</text>
-    </svg>`;
-
-    const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
-    res.set("Content-Type", "image/png");
-    res.send(pngBuffer);
-  } catch (err) {
-    console.error("Poster generation failed:", err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: err.message || "poster generation failed" });
-    }
-  }
-});
-
 // Only ever run one render job at a time. Running sharp + ffmpeg
 // concurrently for multiple videos is what actually exceeds 512MB -
 // this queue makes requests wait their turn instead of overlapping.
@@ -282,6 +231,92 @@ app.post("/render", async (req, res) => {
       }
     } finally {
       cleanup();
+    }
+  });
+});
+
+const PW = 1080;
+const PH = 1350;
+
+function buildPosterSvg({ title, company, location }) {
+  const titleLines = wrapText(title, 22);
+  const titleFontSize = 54;
+  const titleLineHeight = titleFontSize * 1.25;
+  const boxHeight = titleLines.length * titleLineHeight + 60;
+  const boxY = 640;
+
+  const titleTspans = titleLines
+    .map((line, i) => {
+      const y = boxY + 55 + i * titleLineHeight;
+      return `<text x="80" y="${y}" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="${titleFontSize}" fill="#0f4d3c">${escapeXml(
+        line
+      )}</text>`;
+    })
+    .join("\n");
+
+  return `
+  <svg width="${PW}" height="${PH}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="headerGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#0f4d3c"/>
+        <stop offset="100%" stop-color="#0a7a5c"/>
+      </linearGradient>
+    </defs>
+
+    <rect width="${PW}" height="${PH}" fill="#f7f6f2"/>
+
+    <rect width="${PW}" height="560" fill="url(#headerGrad)"/>
+    <circle cx="950" cy="80" r="220" fill="#ffffff" fill-opacity="0.05"/>
+    <circle cx="1000" cy="60" r="140" fill="#ffffff" fill-opacity="0.06"/>
+
+    <text x="80" y="230" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="56" fill="#ffffff">We are</text>
+    <text x="80" y="320" font-family="DejaVu Sans, Arial, sans-serif" font-weight="800" font-size="110" fill="#f5b731">Hiring!</text>
+
+    <rect x="760" y="420" width="240" height="80" rx="14" fill="#f5b731"/>
+    <text x="880" y="470" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="34" fill="#0f4d3c">Apply Now</text>
+
+    <rect x="60" y="${boxY}" width="960" height="${boxHeight}" rx="16" fill="#ffffff" stroke="#e2e2e2" stroke-width="2"/>
+    ${titleTspans}
+
+    <text x="80" y="${boxY + boxHeight + 90}" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" font-size="42" fill="#0f4d3c">${escapeXml(
+    company
+  )}</text>
+    <text x="80" y="${boxY + boxHeight + 145}" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400" font-size="36" fill="#555555">\u{1F4CD} ${escapeXml(
+    location
+  )}</text>
+
+    <rect x="0" y="${PH - 120}" width="${PW}" height="120" fill="#0f4d3c"/>
+    <text x="${PW / 2}" y="${PH - 55}" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-weight="600" font-size="34" fill="#ffffff">\u{1F517} Apply link in the message below</text>
+  </svg>`;
+}
+
+// POST /poster
+// body: { title: string, company: string, location: string }
+// Returns a PNG hiring-poster image (not a video - no audio/ffmpeg needed,
+// so this is fast and light on memory).
+app.post("/poster", async (req, res) => {
+  await enqueue(async () => {
+    try {
+      const { title, company, location } = req.body;
+      if (!title) {
+        res.status(400).json({ error: "title is required" });
+        return;
+      }
+      const svg = Buffer.from(
+        buildPosterSvg({
+          title,
+          company: company || "See posting for details",
+          location: location || "Kenya"
+        })
+      );
+      const png = await sharp(svg).png().toBuffer();
+      res.setHeader("Content-Type", "image/png");
+      res.send(png);
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: err.message || "poster failed" });
+      }
     }
   });
 });
